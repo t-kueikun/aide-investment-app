@@ -156,17 +156,20 @@ export default function AccountPage() {
 
   if (!user) {
     return (
-      <div className="flex min-h-screen flex-col items-center justify-center bg-background text-foreground">
-        <div className="w-full max-w-sm rounded-3xl border border-border bg-card p-10 text-center shadow-sm">
-          <h1 className="text-xl font-semibold">ログインが必要です</h1>
-          <p className="mt-3 text-sm text-muted-foreground">アカウント情報を閲覧するにはサインインしてください。</p>
-          <div className="mt-6 flex flex-col gap-3">
-            <Button asChild className="rounded-full font-semibold">
-              <Link href="/sign-in">Sign in</Link>
-            </Button>
-            <Button asChild variant="outline" className="rounded-full font-semibold">
-              <Link href="/sign-up">Create account</Link>
-            </Button>
+      <div className="relative min-h-screen overflow-hidden bg-background text-foreground">
+        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(59,130,246,0.18),_transparent_65%)] dark:bg-[radial-gradient(circle_at_top,_rgba(15,23,42,0.85),_rgba(2,6,23,1))]" />
+        <div className="relative z-10 flex min-h-screen flex-col items-center justify-center px-6">
+          <div className="w-full max-w-sm rounded-3xl border border-white/25 bg-white/70 p-10 text-center shadow-[0_30px_80px_rgba(2,6,23,0.2)] backdrop-blur-2xl dark:border-white/10 dark:bg-white/5">
+            <h1 className="text-xl font-semibold">ログインが必要です</h1>
+            <p className="mt-3 text-sm text-muted-foreground">アカウント情報を閲覧するにはサインインしてください。</p>
+            <div className="mt-6 flex flex-col gap-3">
+              <Button asChild className="rounded-full font-semibold">
+                <Link href="/sign-in">Sign in</Link>
+              </Button>
+              <Button asChild variant="outline" className="rounded-full font-semibold">
+                <Link href="/sign-up">Create account</Link>
+              </Button>
+            </div>
           </div>
         </div>
       </div>
@@ -178,8 +181,9 @@ export default function AccountPage() {
   const planLabel = plan === "pro" ? "Pro プラン" : plan === "free" ? "Free プラン" : "読み込み中..."
 
   return (
-    <div className="bg-background text-foreground">
-      <main className="mx-auto flex max-w-4xl flex-col gap-10 px-6 py-16">
+    <div className="relative min-h-screen overflow-hidden bg-background text-foreground">
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(59,130,246,0.18),_transparent_65%)] dark:bg-[radial-gradient(circle_at_top,_rgba(15,23,42,0.85),_rgba(2,6,23,1))]" />
+      <main className="relative z-10 mx-auto flex max-w-4xl flex-col gap-10 px-6 py-16">
         <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
           <div>
             <h1 className="text-2xl font-semibold">アカウント</h1>

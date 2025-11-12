@@ -10,14 +10,19 @@ function buildAuthHeader() {
   return `Basic ${Buffer.from(`${PAYJP_SECRET_KEY}:`).toString("base64")}`
 }
 
-async function payjpRequest<T = unknown>(path: string, params: Record<string, string>) {
+async function payjpRequest<T = unknown>(
+  path: string,
+  params?: Record<string, string>,
+  options?: { method?: "GET" | "POST" | "DELETE" },
+) {
+  const method = options?.method ?? "POST"
   const response = await fetch(`https://api.pay.jp${path}`, {
-    method: "POST",
+    method,
     headers: {
       Authorization: buildAuthHeader(),
       "Content-Type": "application/x-www-form-urlencoded",
     },
-    body: new URLSearchParams(params),
+    body: method === "POST" && params ? new URLSearchParams(params) : undefined,
   })
 
   if (!response.ok) {
@@ -52,14 +57,12 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "PAYJP_PLAN_ID is not configured" }, { status: 500 })
     }
 
-    // 1. 顧客を作成
     const customer = await payjpRequest<{ id: string }>("/v1/customers", {
       card: tokenId,
       email: email ?? "",
       description: name ?? "",
     })
 
-    // 2. サブスクリプションを作成
     const subscription = await payjpRequest<{ id: string; status: string }>("/v1/subscriptions", {
       customer: customer.id,
       plan: planId,
@@ -76,6 +79,26 @@ export async function POST(request: Request) {
     console.error("[payments] Failed to process request", error)
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "決済処理に失敗しました。" },
+      { status: 500 },
+    )
+  }
+}
+
+export async function DELETE(request: Request) {
+  try {
+    const { subscriptionId } = (await request.json()) as { subscriptionId?: string }
+
+    if (!subscriptionId) {
+      return NextResponse.json({ error: "subscriptionId is required" }, { status: 400 })
+    }
+
+    await payjpRequest(`/v1/subscriptions/${subscriptionId}`, undefined, { method: "DELETE" })
+
+    return NextResponse.json({ status: "canceled" })
+  } catch (error) {
+    console.error("[payments] Failed to cancel subscription", error)
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : "解約処理に失敗しました。" },
       { status: 500 },
     )
   }

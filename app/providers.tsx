@@ -10,9 +10,16 @@ interface AuthContextValue {
   loading: boolean
   plan: "free" | "pro" | null
   planLoading: boolean
+  isAuthenticated: boolean
 }
 
-const AuthContext = createContext<AuthContextValue>({ user: null, loading: true, plan: null, planLoading: true })
+const AuthContext = createContext<AuthContextValue>({
+  user: null,
+  loading: true,
+  plan: null,
+  planLoading: true,
+  isAuthenticated: false,
+})
 
 export function AuthProvider({ children }: PropsWithChildren) {
   const [user, setUser] = useState<User | null>(null)
@@ -62,7 +69,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
   }, [user])
 
   const value = useMemo(
-    () => ({ user, loading, plan, planLoading }),
+    () => ({ user, loading, plan, planLoading, isAuthenticated: !!user }),
     [user, loading, plan, planLoading],
   )
 

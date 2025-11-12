@@ -1,15 +1,19 @@
 "use client"
 
-import { useEffect, useState } from "react"
 import Link from "next/link"
+import { useEffect, useState } from "react"
+import { useRouter } from "next/navigation"
+import { doc, serverTimestamp, setDoc } from "firebase/firestore"
 
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Badge } from "@/components/ui/badge"
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Loader2, ShieldCheck } from "lucide-react"
+import { firestore } from "@/lib/firebase"
+import { useAuth } from "../providers"
 
 declare global {
   interface Window {
@@ -20,6 +24,8 @@ declare global {
 const PUBLIC_KEY = process.env.NEXT_PUBLIC_PAYJP_PUBLIC_KEY ?? ""
 
 export default function CheckoutPage() {
+  const router = useRouter()
+  const { user, loading: authLoading, plan, planLoading } = useAuth()
   const [payjp, setPayjp] = useState<any>(null)
   const [cardElement, setCardElement] = useState<any>(null)
   const [submitting, setSubmitting] = useState(false)
@@ -27,9 +33,11 @@ export default function CheckoutPage() {
   const [success, setSuccess] = useState(false)
   const [email, setEmail] = useState("")
   const [name, setName] = useState("")
+  const [planUpdateError, setPlanUpdateError] = useState<string | null>(null)
+  const canCollectCard = Boolean(PUBLIC_KEY && user && plan !== "pro")
 
   useEffect(() => {
-    if (!PUBLIC_KEY) return
+    if (!canCollectCard) return
     if (typeof window === "undefined") return
     if (window.Payjp && payjp) return
     const existing = document.getElementById("payjp-script")
@@ -48,10 +56,10 @@ export default function CheckoutPage() {
     } else {
       existing.addEventListener("load", loadScript)
     }
-  }, [])
+  }, [payjp, canCollectCard])
 
   useEffect(() => {
-    if (!payjp) return
+    if (!payjp || !canCollectCard) return
     const elements = payjp.elements()
     const card = elements.create("card", {
       style: {
@@ -61,26 +69,53 @@ export default function CheckoutPage() {
         },
       },
     })
-    card.mount("#payjp-card")
+    const mountSelector = "#payjp-card"
+    const mountTarget = document.querySelector(mountSelector)
+    if (!mountTarget) {
+      console.warn("[checkout] #payjp-card element is not present, skipping mount.")
+      return
+    }
+    card.mount(mountSelector)
     setCardElement(card)
     return () => {
       card.unmount()
     }
-  }, [payjp])
+  }, [payjp, canCollectCard])
+
+  useEffect(() => {
+    if (authLoading || planLoading) return
+    if (plan === "pro") {
+      router.replace("/dashboard")
+    }
+  }, [authLoading, planLoading, plan, router])
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     if (!payjp || !cardElement) return
+    if (!user) {
+      setError("ログインしてからアップグレードを行ってください。")
+      return
+    }
     setSubmitting(true)
     setError(null)
+    setPlanUpdateError(null)
     try {
-      const { token, error: tokenError } = await payjp.createToken(cardElement)
-      if (tokenError) {
-        setError(tokenError.message ?? "カード情報の認証に失敗しました。")
+      const tokenResult = await payjp.createToken(cardElement)
+
+      if (tokenResult?.error) {
+        setError(tokenResult.error.message ?? "カード情報の認証に失敗しました。")
         setSubmitting(false)
         return
       }
-      if (!token?.id) {
+
+      const tokenId =
+        typeof tokenResult?.id === "string"
+          ? tokenResult.id
+          : typeof tokenResult?.token?.id === "string"
+            ? tokenResult.token.id
+            : null
+
+      if (!tokenId) {
         setError("カードトークンの生成に失敗しました。入力内容を確認してください。")
         setSubmitting(false)
         return
@@ -90,18 +125,37 @@ export default function CheckoutPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          tokenId: token.id,
+          tokenId,
           plan: "pro",
           email,
           name,
+          uid: user.uid,
         }),
       })
 
+      const body = await response.json().catch(() => null)
       if (!response.ok) {
-        const body = await response.json().catch(() => ({}))
         throw new Error(body?.error ?? "決済処理に失敗しました。")
       }
 
+      try {
+        await setDoc(
+          doc(firestore, "userPlans", user.uid),
+          {
+            plan: "pro",
+            tier: "pro",
+            subscriptionId: body?.subscriptionId ?? null,
+            subscriptionStatus: body?.subscriptionStatus ?? null,
+            customerId: body?.customerId ?? null,
+            updatedAt: serverTimestamp(),
+          },
+          { merge: true },
+        )
+        setPlanUpdateError(null)
+      } catch (planError) {
+        console.error("[checkout] Failed to sync plan status", planError)
+        setPlanUpdateError("決済は完了しましたが、プラン情報の更新に失敗しました。サポートまでご連絡ください。")
+      }
       setSuccess(true)
     } catch (err) {
       console.error(err)
@@ -109,6 +163,53 @@ export default function CheckoutPage() {
     } finally {
       setSubmitting(false)
     }
+  }
+
+  if (authLoading || planLoading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background text-foreground">
+        <div className="flex items-center gap-3 text-sm text-muted-foreground">
+          <span className="h-5 w-5 rounded-full border-2 border-foreground/40 border-t-transparent animate-spin" />
+          ログイン状態を確認しています…
+        </div>
+      </div>
+    )
+  }
+
+  if (!user) {
+    return (
+      <div className="mx-auto flex min-h-[60vh] max-w-2xl flex-col items-center justify-center gap-6 px-6 text-center text-foreground">
+        <Badge>CHECKOUT</Badge>
+        <div>
+          <h1 className="text-3xl font-semibold">ログインしてアップグレードしてください</h1>
+          <p className="mt-3 text-sm text-muted-foreground">
+            Pro プランのお申し込みにはアカウントが必要です。ログインまたは新規登録を行ってから再度お試しください。
+          </p>
+        </div>
+        <div className="flex flex-wrap justify-center gap-4">
+          <Button asChild>
+            <Link href="/sign-in?redirect=/checkout">ログインする</Link>
+          </Button>
+          <Button variant="outline" asChild>
+            <Link href="/sign-up?redirect=/checkout">無料登録</Link>
+          </Button>
+        </div>
+      </div>
+    )
+  }
+
+  if (plan === "pro") {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background text-foreground">
+        <div className="flex flex-col items-center gap-4 text-center">
+          <Badge>CHECKOUT</Badge>
+          <div>
+            <p className="text-lg font-semibold">Pro プランはすでに有効です</p>
+            <p className="mt-2 text-sm text-muted-foreground">ダッシュボードへリダイレクトしています…</p>
+          </div>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -119,7 +220,7 @@ export default function CheckoutPage() {
         </Badge>
         <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">Pro プランへのアップグレード</h1>
         <p className="mt-2 text-muted-foreground">
-          月額 ¥500 で分析回数の制限なし、広告なし、株特化AIチャットなどプロ向け機能をご利用いただけます。
+          月額 ¥400 で分析回数の制限なし、広告なし、株特化AIチャットなどプロ向け機能をご利用いただけます。
         </p>
       </section>
 
@@ -177,6 +278,12 @@ export default function CheckoutPage() {
                   <Alert>
                     <AlertTitle>決済が完了しました</AlertTitle>
                     <AlertDescription>Pro プランが有効になりました。ダッシュボードに戻って分析を開始しましょう。</AlertDescription>
+                  </Alert>
+                )}
+                {planUpdateError && (
+                  <Alert variant="destructive">
+                    <AlertTitle>プラン反映に失敗しました</AlertTitle>
+                    <AlertDescription>{planUpdateError}</AlertDescription>
                   </Alert>
                 )}
                 <Button

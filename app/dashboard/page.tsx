@@ -140,17 +140,6 @@ export default function DashboardPage() {
     }
   }, [authLoading, router, user])
 
-  if (authLoading || !user) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-slate-950 text-white">
-        <div className="flex items-center gap-3 text-sm text-slate-200">
-          <span className="h-5 w-5 rounded-full border-2 border-white border-t-transparent animate-spin" />
-          ログイン状態を確認しています…
-        </div>
-      </div>
-    )
-  }
-
   const loadCompanyInfo = useCallback(async (ticker: string, targetIndex: number): Promise<void> => {
     const symbol = ticker.trim()
     if (!symbol) return
@@ -379,6 +368,17 @@ export default function DashboardPage() {
     "rounded-4xl border border-dashed border-white/40 bg-white/20 text-muted-foreground shadow-[inset_0_1px_0_rgba(255,255,255,0.6)] backdrop-blur-2xl dark:border-white/15 dark:bg-white/5 dark:text-white/50"
   const dividerClass = "my-6 w-full border-t border-white/60 dark:border-white/10"
   const bulletClass = "absolute left-0 top-2 h-1.5 w-1.5 rounded-full bg-slate-400/70 dark:bg-white/60"
+
+  if (authLoading || !user) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-slate-950 text-white">
+        <div className="flex items-center gap-3 text-sm text-slate-200">
+          <span className="h-5 w-5 rounded-full border-2 border-white border-t-transparent animate-spin" />
+          ログイン状態を確認しています…
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="min-h-screen bg-background text-foreground transition-colors dark:bg-[radial-gradient(circle_at_top,rgba(15,23,42,0.95),rgba(2,6,23,1))]">
