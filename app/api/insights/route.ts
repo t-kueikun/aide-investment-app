@@ -100,6 +100,14 @@ const ALIAS_MAP: Record<
   "keyence": { ticker: "6861.T", company: "キーエンス" },
   "6861": { ticker: "6861.T", company: "キーエンス" },
   "6861.t": { ticker: "6861.T", company: "キーエンス" },
+  "jal": { ticker: "9201.T", company: "日本航空" },
+  "japan airlines": { ticker: "9201.T", company: "日本航空" },
+  "japan airline": { ticker: "9201.T", company: "日本航空" },
+  "日本航空": { ticker: "9201.T", company: "日本航空" },
+  "全日本空輸": { ticker: "9202.T", company: "ANAホールディングス" },
+  "全日空": { ticker: "9202.T", company: "ANAホールディングス" },
+  "ana": { ticker: "9202.T", company: "ANAホールディングス" },
+  "ana holdings": { ticker: "9202.T", company: "ANAホールディングス" },
 }
 
 function normalizeTickerSymbol(raw: string): string {
@@ -416,6 +424,7 @@ interface ExternalCompanyProfile {
   headquarters: string | null
   website: string | null
   officers: OfficerInfo[]
+  exchange?: string | null
 }
 
 const YAHOO_HEADERS = {
@@ -430,6 +439,87 @@ const YAHOO_QUOTE_SUMMARY_ENDPOINTS = [
 
 const YAHOO_QUOTE_ENDPOINT = "https://query1.finance.yahoo.com/v7/finance/quote"
 const YAHOO_SEARCH_ENDPOINT = "https://query2.finance.yahoo.com/v1/finance/search"
+const YAHOO_AUTOCOMPLETE_ENDPOINT = "https://query2.finance.yahoo.com/v6/finance/autocomplete"
+
+function isTokyoSymbol(symbol?: string | null, exchange?: string | null): boolean {
+  if (!symbol) return false
+  if (symbol.toUpperCase().endsWith(".T")) return true
+  if (exchange) {
+    return exchange.toUpperCase() === "JPX"
+  }
+  return false
+}
+
+function quoteExchange(quote: any): string | null {
+  if (!quote) return null
+  if (typeof quote.exchange === "string") return quote.exchange
+  if (typeof quote.exch === "string") return quote.exch
+  return null
+}
+
+function selectPreferredAutocompleteResult(
+  results: any[],
+  normalizedExpected?: string,
+): { symbol: string; name?: string | null; shortname?: string | null; exchange?: string | null } | null {
+  if (!Array.isArray(results) || results.length === 0) return null
+  if (normalizedExpected) {
+    const exact = results.find(
+      (result: any) => typeof result?.symbol === "string" && normalizeTickerSymbol(result.symbol) === normalizedExpected,
+    )
+    if (exact) {
+      return {
+        symbol: normalizeTickerSymbol(exact.symbol),
+        name: exact.name,
+        shortname: exact.shortname,
+        exchange: exact.exch ?? null,
+      }
+    }
+  }
+  const tokyo = results.find(
+    (result: any) => typeof result?.symbol === "string" && isTokyoSymbol(result.symbol, result.exch ?? null),
+  )
+  if (tokyo) {
+    return {
+      symbol: normalizeTickerSymbol(tokyo.symbol),
+      name: tokyo.name,
+      shortname: tokyo.shortname,
+      exchange: tokyo.exch ?? null,
+    }
+  }
+  return null
+}
+
+function selectPreferredQuote(
+  quotes: any[],
+  normalizedExpected?: string,
+): { symbol: string; longname?: string | null; shortname?: string | null; exchange?: string | null } | null {
+  if (!Array.isArray(quotes) || quotes.length === 0) return null
+  if (normalizedExpected) {
+    const exact = quotes.find(
+      (quote: any) => typeof quote?.symbol === "string" && normalizeTickerSymbol(quote.symbol) === normalizedExpected,
+    )
+    if (exact) {
+      return {
+        symbol: normalizeTickerSymbol(exact.symbol),
+        longname: exact.longname,
+        shortname: exact.shortname,
+        exchange: quoteExchange(exact),
+      }
+    }
+  }
+  const tokyo = quotes.find(
+    (quote: any) => typeof quote?.symbol === "string" && isTokyoSymbol(quote.symbol, quoteExchange(quote)),
+  )
+  if (tokyo) {
+    return {
+      symbol: normalizeTickerSymbol(tokyo.symbol),
+      longname: tokyo.longname,
+      shortname: tokyo.shortname,
+      exchange: quoteExchange(tokyo),
+    }
+  }
+  return null
+}
 
 function buildYahooHeadquarters(profile: Record<string, any> | undefined) {
   if (!profile) return null
@@ -516,11 +606,90 @@ async function fetchYahooSearchProfile(query: string, expectedTicker?: string): 
   const trimmedQuery = query.trim()
   if (!trimmedQuery) return null
   const normalizedExpected = expectedTicker ? normalizeTickerSymbol(expectedTicker) : undefined
-  const searchQuery =
-    normalizedExpected && trimmedQuery.toUpperCase() === normalizedExpected
+
+  const attemptedQueries = new Set<string>([trimmedQuery.toLowerCase()])
+
+  const fromAutocomplete = await fetchYahooAutocomplete(trimmedQuery, normalizedExpected)
+  if (fromAutocomplete) {
+    if (isTokyoSymbol(fromAutocomplete.symbol, fromAutocomplete.exchange ?? null)) {
+      return fromAutocomplete
+    }
+    if (typeof fromAutocomplete.longName === "string") {
+      attemptedQueries.add(fromAutocomplete.longName.toLowerCase())
+    }
+    if (typeof fromAutocomplete.shortName === "string") {
+      attemptedQueries.add(fromAutocomplete.shortName.toLowerCase())
+    }
+  }
+
+  const fromSearch = await fetchYahooSearch(trimmedQuery, normalizedExpected)
+  if (!fromSearch) {
+    return fromAutocomplete
+  }
+  if (fromSearch.profile && isTokyoSymbol(fromSearch.profile.symbol, fromSearch.profile.exchange ?? null)) {
+    return fromSearch.profile
+  }
+
+  const refinedFromQuotes = await refineProfileFromQuoteNames(fromSearch.quotes, attemptedQueries, normalizedExpected)
+  if (refinedFromQuotes) {
+    return refinedFromQuotes
+  }
+
+  if (fromSearch.profile) {
+    return fromSearch.profile
+  }
+
+  return fromAutocomplete
+}
+
+async function fetchYahooAutocomplete(query: string, expectedTicker?: string): Promise<ExternalCompanyProfile | null> {
+  const url = `${YAHOO_AUTOCOMPLETE_ENDPOINT}?lang=ja-JP&region=JP&query=${encodeURIComponent(query)}`
+  try {
+    const response = await fetch(url, {
+      headers: YAHOO_HEADERS,
+      next: { revalidate: 60 * 5 },
+    })
+    if (!response.ok) {
+      const errorText = await response.text()
+      console.warn("Yahoo Finance autocomplete error:", response.status, errorText)
+      return null
+    }
+    const payload = await response.json()
+    const results = Array.isArray(payload?.ResultSet?.Result) ? payload.ResultSet.Result : []
+    if (results.length === 0) return null
+    const normalizedExpected = expectedTicker ? normalizeTickerSymbol(expectedTicker) : undefined
+    const preferred = selectPreferredAutocompleteResult(results, normalizedExpected)
+    if (!preferred) return null
+    const resolvedSymbol = preferred.symbol
+    return {
+      symbol: resolvedSymbol,
+      longName: typeof preferred.name === "string" ? preferred.name : null,
+      shortName: typeof preferred.shortname === "string" ? preferred.shortname : null,
+      industry: null,
+      sector: null,
+      headquarters: null,
+      website: null,
+      officers: [],
+      exchange: typeof preferred.exchange === "string" ? preferred.exchange : null,
+    }
+  } catch (error) {
+    console.warn("Yahoo Finance autocomplete fetch failed:", error)
+    return null
+  }
+}
+
+type YahooSearchPayload = {
+  profile: ExternalCompanyProfile | null
+  quotes: any[]
+}
+
+async function fetchYahooSearch(query: string, expectedTicker?: string): Promise<YahooSearchPayload | null> {
+  const normalizedExpected = expectedTicker ? normalizeTickerSymbol(expectedTicker) : undefined
+  const normalizedQuery =
+    normalizedExpected && query.toUpperCase() === normalizedExpected
       ? normalizedExpected.replace(/\.T$/i, "")
-      : trimmedQuery
-  const url = `${YAHOO_SEARCH_ENDPOINT}?q=${encodeURIComponent(searchQuery)}&quotesCount=5&newsCount=0`
+      : query
+  const url = `${YAHOO_SEARCH_ENDPOINT}?q=${encodeURIComponent(normalizedQuery)}&quotesCount=5&newsCount=0&lang=ja-JP&region=JP`
   try {
     const response = await fetch(url, {
       headers: YAHOO_HEADERS,
@@ -533,27 +702,114 @@ async function fetchYahooSearchProfile(query: string, expectedTicker?: string): 
     }
     const payload = await response.json()
     const quotes = Array.isArray(payload?.quotes) ? payload.quotes : []
-    if (quotes.length === 0) return null
-    const match =
-      (normalizedExpected
-        ? quotes.find(
-            (quote: any) => typeof quote?.symbol === "string" && normalizeTickerSymbol(quote.symbol) === normalizedExpected,
-          )
-        : undefined) ?? quotes[0]
-    if (!match || typeof match !== "object" || typeof match.symbol !== "string") return null
-    const resolvedSymbol = normalizeTickerSymbol(match.symbol)
+    const preferred = selectPreferredQuote(quotes, normalizedExpected)
+    if (!preferred) {
+      return { profile: null, quotes }
+    }
     return {
-      symbol: resolvedSymbol,
-      longName: typeof match.longname === "string" ? match.longname : null,
-      shortName: typeof match.shortname === "string" ? match.shortname : null,
-      industry: typeof match.industry === "string" ? match.industry : null,
-      sector: typeof match.sector === "string" ? match.sector : null,
-      headquarters: null,
-      website: null,
-      officers: [],
+      profile: {
+        symbol: preferred.symbol,
+        longName: typeof preferred.longname === "string" ? preferred.longname : null,
+        shortName: typeof preferred.shortname === "string" ? preferred.shortname : null,
+        industry: null,
+        sector: null,
+        headquarters: null,
+        website: null,
+        officers: [],
+        exchange: typeof preferred.exchange === "string" ? preferred.exchange : null,
+      },
+      quotes,
     }
   } catch (error) {
     console.warn("Yahoo Finance search fetch failed:", error)
+    return null
+  }
+}
+
+async function refineProfileFromQuoteNames(
+  quotes: any[],
+  attemptedQueries: Set<string>,
+  normalizedExpected?: string,
+): Promise<ExternalCompanyProfile | null> {
+  if (!Array.isArray(quotes) || quotes.length === 0) return null
+  for (const quote of quotes) {
+    const candidateNames = [
+      typeof quote?.longname === "string" ? quote.longname : null,
+      typeof quote?.shortname === "string" ? quote.shortname : null,
+    ].filter((value): value is string => typeof value === "string" && value.trim().length > 0)
+    for (const name of candidateNames) {
+      const normalizedName = name.trim()
+      const key = normalizedName.toLowerCase()
+      if (attemptedQueries.has(key)) continue
+      attemptedQueries.add(key)
+      const profile = await fetchYahooAutocomplete(normalizedName, normalizedExpected)
+      if (profile && isTokyoSymbol(profile.symbol, profile.exchange ?? null)) {
+        return profile
+      }
+    }
+  }
+  return null
+}
+
+async function inferTickerWithAI(query: string): Promise<{ ticker?: string; company?: string } | null> {
+  const apiKey = process.env.OPENAI_API_KEY
+  if (!apiKey) return null
+  const trimmedQuery = query.trim()
+  if (!trimmedQuery) return null
+
+  const prompt = `以下の入力は日本語または英語で書かれた企業名・略称・愛称です。東京証券取引所の銘柄の場合、対応する4桁コードに".T"を付けたティッカーと正式名称をJSONで返してください。該当が不明な場合は空文字のまま返してください。
+
+入力: ${trimmedQuery}
+
+出力形式:
+{
+  "ticker": "XXXX.T",
+  "company": "正式名称"
+}`
+
+  try {
+    const response = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model: "gpt-4o-mini",
+        temperature: 0,
+        messages: [
+          {
+            role: "system",
+            content: "You convert Japanese company nicknames into JPX ticker symbols. Respond with JSON only.",
+          },
+          {
+            role: "user",
+            content: prompt,
+          },
+        ],
+      }),
+    })
+
+    if (!response.ok) {
+      console.warn("AI ticker inference failed:", response.status)
+      return null
+    }
+    const data = await response.json()
+    const rawContent = data.choices?.[0]?.message?.content
+    const text = typeof rawContent === "string" ? rawContent.trim() : ""
+    if (!text) return null
+    const jsonMatch = text.match(/\{[\s\S]*\}/)
+    if (!jsonMatch) return null
+    const parsed = JSON.parse(jsonMatch[0])
+    if (!parsed || typeof parsed !== "object") return null
+    const tickerValue = typeof parsed.ticker === "string" ? parsed.ticker.trim() : ""
+    const companyValue = typeof parsed.company === "string" ? parsed.company.trim() : ""
+    return {
+      ticker: tickerValue || undefined,
+      company: companyValue || undefined,
+    }
+  } catch (error) {
+    console.error("Failed to infer ticker via AI:", error)
     return null
   }
 }
@@ -584,23 +840,58 @@ export async function GET(request: NextRequest) {
   if (!normalized) {
     return NextResponse.json({ error: "会社名または証券コードを入力してください" }, { status: 400 })
   }
+  console.info(`[insights] lookup start input="${identifier}" normalized="${normalized}"`)
 
   const tickerLikeCandidate =
     /^[0-9A-Za-z.\-:]+$/.test(normalized) ? normalizeTickerSymbol(normalized) : undefined
   const alias =
     ALIAS_MAP[normalized.toLowerCase()] ??
     (tickerLikeCandidate ? ALIAS_MAP[tickerLikeCandidate.toLowerCase()] : undefined)
-  let hintTicker = alias?.ticker ?? tickerLikeCandidate
+  let hintTicker = alias?.ticker ?? null
   let hintCompany = alias?.company
+  if (hintTicker) {
+    console.info(`[insights] alias lookup hit: ticker=${hintTicker} company=${hintCompany ?? "-"}`)
+  } else {
+    console.info("[insights] alias lookup miss, falling back to Yahoo search")
+  }
 
   if (!hintTicker && normalized.length >= 2) {
+    console.info(`[insights] attempting Yahoo search for "${normalized}"`)
     const searchProfile = await fetchYahooSearchProfile(normalized)
     if (searchProfile?.symbol) {
       hintTicker = searchProfile.symbol
       if (!hintCompany) {
         hintCompany = searchProfile.longName ?? searchProfile.shortName ?? undefined
       }
+      console.info(
+        `[insights] Yahoo search resolved ticker=${hintTicker} company=${hintCompany ?? "-"} exchange=${
+          searchProfile.exchange ?? "-"
+        }`,
+      )
+    } else {
+      console.info("[insights] Yahoo search did not resolve a ticker")
     }
+  }
+
+  if (!hintTicker && normalized.length >= 2) {
+    console.info(`[insights] falling back to AI ticker inference for "${normalized}"`)
+    const aiGuess = await inferTickerWithAI(normalized)
+    if (aiGuess?.ticker) {
+      hintTicker = normalizeTickerSymbol(aiGuess.ticker)
+      if (!hintCompany) {
+        hintCompany = aiGuess.company ?? undefined
+      }
+      console.info(`[insights] AI inference resolved ticker=${hintTicker} company=${hintCompany ?? "-"}`)
+    } else {
+      console.info("[insights] AI inference failed to resolve ticker")
+    }
+  }
+  if (!hintTicker && tickerLikeCandidate) {
+    hintTicker = tickerLikeCandidate
+    console.info(`[insights] defaulting to raw ticker-like input ${hintTicker}`)
+  }
+  if (!hintTicker) {
+    console.warn("[insights] unable to resolve ticker from input, proceeding with normalized text only")
   }
 
   const cacheKey = (hintTicker ?? normalized).toLowerCase()

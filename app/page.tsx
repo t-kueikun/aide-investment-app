@@ -40,6 +40,42 @@ const painPoints = [
   },
 ]
 
+const mobileNavTabs = ["ウォッチ", "比較", "アラート"] as const
+
+const mobileInsightHighlight = {
+  ticker: "9201.T",
+  company: "日本航空",
+  status: "安定モード",
+  score: 74,
+  change: "+1.2%",
+  summary: "国際線の回復で稼働率がリバウンド。燃油コストはサーチャージでコントロール。",
+  bullets: [
+    "訪日需要の回復で国際線収益が改善。",
+    "貨物のスローダウンもサービス改良で補完。",
+    "AIメモ：コスト削減策を年次報告書から抽出済み。",
+  ],
+  metrics: [
+    { label: "更新", value: "15分前" },
+    { label: "AIメモ", value: "3件" },
+    { label: "リマインダー", value: "本日19:00" },
+  ],
+}
+
+const mobileUiPreviews = [
+  {
+    title: "片手で比較を更新",
+    description: "ウォッチ中の企業をモバイルから再分析。Slackやメール通知から直接AI要約へジャンプできます。",
+    tag: "Live更新",
+    highlights: ["1日9社までモバイル優先処理", "通知センターに最新スコアを配信"],
+  },
+  {
+    title: "アラートとメモを一体管理",
+    description: "決算やリスクイベントを検知するとAIが要点を整理してメモと紐づけ。移動中でも抜け漏れなし。",
+    tag: "Smart Alert",
+    highlights: ["イベント感知でコメント自動生成", "Slack / Teams にも共有"],
+  },
+] as const
+
 interface HeroSnapshot {
   ticker: string
   company: string
@@ -243,7 +279,7 @@ export default function LandingPage() {
   return (
     <div className="min-h-screen bg-background text-foreground">
       <main>
-        <section className="border-b border-border/70 bg-gradient-to-b from-background to-muted/40 dark:from-slate-950 dark:to-slate-900">
+        <section className="border-b border-border/70 bg-linear-to-b from-background to-muted/40 dark:from-slate-950 dark:to-slate-900">
           <div className="mx-auto grid max-w-6xl gap-12 px-6 py-24 md:grid-cols-2 md:items-center">
             <div className="space-y-8">
               <p className="inline-flex items-center rounded-full bg-primary/10 px-4 py-1 text-sm font-medium text-primary">
@@ -402,6 +438,101 @@ export default function LandingPage() {
           </div>
         </section>
 
+        <section className="border-y border-white/20 bg-[radial-gradient(circle_at_top,rgba(248,250,255,0.95),rgba(228,232,255,0.7))] py-20 dark:border-white/10 dark:bg-[radial-gradient(circle_at_top,rgba(15,23,42,0.98),rgba(2,6,23,1))]">
+          <div className="mx-auto grid max-w-6xl gap-12 px-6 lg:grid-cols-[1.1fr,0.9fr] lg:items-center">
+            <div className="space-y-6">
+              <div>
+                <p className="text-sm font-semibold uppercase tracking-[0.4em] text-primary">Mobile</p>
+                <h2 className="mt-4 text-3xl font-semibold text-foreground">携帯1つで、比較とアラートを完結</h2>
+                <p className="mt-3 text-sm leading-6 text-muted-foreground">
+                  通勤中でもウォッチリストを更新し、新しいAIメモやアラートを確認できます。Pro プランならモバイル優先処理で分析が数秒。
+                </p>
+              </div>
+              <div className="grid gap-4 sm:grid-cols-2">
+                {mobileUiPreviews.map((card) => (
+                  <div
+                    key={card.title}
+                    className="rounded-3xl border border-white/30 bg-white/70 p-5 shadow-[0_20px_50px_rgba(2,6,23,0.12)] backdrop-blur-xl dark:border-white/10 dark:bg-white/5"
+                  >
+                    <p className="text-xs font-semibold uppercase tracking-wide text-primary">{card.tag}</p>
+                    <h3 className="mt-2 text-lg font-semibold text-foreground">{card.title}</h3>
+                    <p className="mt-1 text-sm leading-6 text-muted-foreground">{card.description}</p>
+                    <ul className="mt-3 space-y-2 text-sm text-foreground">
+                      {card.highlights.map((highlight) => (
+                        <li key={highlight} className="flex items-center gap-2">
+                          <span className="h-1.5 w-1.5 rounded-full bg-primary/70" />
+                          {highlight}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ))}
+              </div>
+              <div className="flex flex-wrap gap-4">
+                <Button asChild>
+                  <Link href="/dashboard?view=mobile">
+                    モバイルビューを試す
+                    <ArrowRight className="ml-2 h-4 w-4" />
+                  </Link>
+                </Button>
+                <Button asChild variant="outline" className={glassButtonClass}>
+                  <Link href="/pricing">利用条件を見る</Link>
+                </Button>
+              </div>
+            </div>
+            <div className="flex justify-center lg:justify-end">
+              <div className="w-full max-w-xs rounded-[36px] border border-white/40 bg-linear-to-b from-white to-white/80 p-4 shadow-[0_35px_80px_rgba(2,6,23,0.25)] dark:border-white/10 dark:from-slate-900 dark:to-slate-900/90">
+                <div className="mx-auto mb-4 h-1 w-16 rounded-full bg-slate-200/80 dark:bg-white/20" />
+                <div className="flex items-center justify-between rounded-2xl bg-white/20 px-2 py-1 text-xs font-semibold text-white/70 dark:bg-slate-800/80">
+                  {mobileNavTabs.map((tab, index) => (
+                    <span
+                      key={tab}
+                      className={`flex-1 rounded-xl px-2 py-1 text-center ${
+                        index === 1 ? "bg-white text-slate-900" : "text-white/70"
+                      }`}
+                    >
+                      {tab}
+                    </span>
+                  ))}
+                </div>
+                <div className="mt-4 rounded-3xl bg-white/95 p-4 text-slate-900 shadow-[0_20px_60px_rgba(2,6,23,0.15)] dark:bg-slate-900/80 dark:text-white">
+                  <div className="flex items-center justify-between text-xs text-muted-foreground">
+                    <div>
+                      <p className="text-base font-semibold text-foreground">{mobileInsightHighlight.company}</p>
+                      <p>{mobileInsightHighlight.ticker}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-xs font-medium">{mobileInsightHighlight.status}</p>
+                      <p className="text-lg font-semibold text-primary">{mobileInsightHighlight.score}</p>
+                      <p className="text-xs text-green-600">{mobileInsightHighlight.change}</p>
+                    </div>
+                  </div>
+                  <p className="mt-3 text-sm leading-6 text-muted-foreground">{mobileInsightHighlight.summary}</p>
+                  <ul className="mt-3 space-y-2 text-sm">
+                    {mobileInsightHighlight.bullets.map((bullet) => (
+                      <li key={bullet} className="flex gap-2">
+                        <span className="mt-1 h-1.5 w-1.5 rounded-full bg-primary/70" />
+                        <span>{bullet}</span>
+                      </li>
+                    ))}
+                  </ul>
+                  <div className="mt-4 grid grid-cols-3 gap-2 text-center text-xs text-muted-foreground">
+                    {mobileInsightHighlight.metrics.map((metric) => (
+                      <div key={metric.label} className="rounded-2xl border border-slate-200/60 px-2 py-2 dark:border-white/20">
+                        <p className="text-[11px] uppercase tracking-wide">{metric.label}</p>
+                        <p className="mt-1 text-sm font-semibold text-foreground">{metric.value}</p>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="mt-4 rounded-2xl bg-muted px-3 py-2 text-xs font-medium text-muted-foreground dark:bg-slate-800">
+                    AIが次の比較更新を準備中…
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
         <section className="border-y border-border bg-card">
           <div className="max-w-6xl mx-auto px-6 py-20">
             <div className="mb-12 text-center">
@@ -421,7 +552,7 @@ export default function LandingPage() {
           </div>
         </section>
 
-        <section className="border-y border-white/20 bg-[radial-gradient(circle_at_top,_rgba(255,255,255,0.95),_rgba(240,244,255,0.7))] backdrop-blur-xl dark:border-white/10 dark:bg-[radial-gradient(circle_at_top,_rgba(15,23,42,0.95),_rgba(2,6,23,1))]">
+        <section className="border-y border-white/20 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.95),rgba(240,244,255,0.7))] backdrop-blur-xl dark:border-white/10 dark:bg-[radial-gradient(circle_at_top,rgba(15,23,42,0.95),rgba(2,6,23,1))]">
           <div className="mx-auto max-w-6xl px-6 py-20">
             <div className="mb-12">
               <h2 className="text-3xl font-semibold text-foreground">人気の比較事例</h2>
@@ -486,7 +617,7 @@ export default function LandingPage() {
           </div>
         </section>
 
-        <section className="border-y border-white/20 bg-[radial-gradient(circle_at_top,_rgba(255,255,255,0.9),_rgba(226,232,240,0.6))] backdrop-blur-xl dark:border-white/10 dark:bg-[radial-gradient(circle_at_top,_rgba(15,23,42,0.9),_rgba(2,6,23,1))]">
+        <section className="border-y border-white/20 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.9),rgba(226,232,240,0.6))] backdrop-blur-xl dark:border-white/10 dark:bg-[radial-gradient(circle_at_top,rgba(15,23,42,0.9),rgba(2,6,23,1))]">
           <div className="mx-auto max-w-6xl px-6 py-16 text-center">
             <h2 className="text-3xl font-semibold text-foreground">投資判断をスピードアップしましょう</h2>
             <p className="mt-4 text-lg text-muted-foreground">
