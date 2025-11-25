@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
+import { GoogleGenerativeAI } from "@google/generative-ai"
 
-const OPENAI_SUGGESTION_MODEL = process.env.SUGGESTION_OPENAI_MODEL ?? "gpt-5-nano"
+const GEMINI_SUGGESTION_MODEL = process.env.SUGGESTION_GEMINI_MODEL ?? "gemini-2.5-flash"
 const MAX_SUGGESTIONS = 6
 
 interface SuggestionContext {
@@ -54,19 +55,19 @@ export async function POST(request: NextRequest) {
   const prompt = buildPrompt({ tickers, preferredMarket, context, rangeBase })
   let lastError: Error | null = null
 
-  if (!process.env.OPENAI_API_KEY) {
-    return respondWithFallback("候補生成には OPENAI_API_KEY が必要です。環境変数を設定してください。")
+  if (!process.env.GEMINI_API_KEY) {
+    return respondWithFallback("候補生成には GEMINI_API_KEY が必要です。環境変数を設定してください。")
   }
 
   try {
-    const openAISuggestions = await generateOpenAISuggestions(prompt)
-    if (openAISuggestions.length > 0) {
-      return NextResponse.json({ suggestions: openAISuggestions.slice(0, MAX_SUGGESTIONS) })
+    const geminiSuggestions = await generateGeminiSuggestions(prompt)
+    if (geminiSuggestions.length > 0) {
+      return NextResponse.json({ suggestions: geminiSuggestions.slice(0, MAX_SUGGESTIONS) })
     }
-    lastError = new Error("ChatGPT から候補を取得できませんでした。")
+    lastError = new Error("Gemini から候補を取得できませんでした。")
   } catch (error) {
     lastError = error instanceof Error ? error : new Error(String(error))
-    console.error("OpenAI suggestions error:", lastError)
+    console.error("Gemini suggestions error:", lastError)
   }
 
   const message =
@@ -78,41 +79,21 @@ function respondWithFallback(message: string) {
   return NextResponse.json({ suggestions: [], error: message, fallback: true })
 }
 
-async function generateOpenAISuggestions(prompt: string): Promise<Suggestion[]> {
-  const apiKey = process.env.OPENAI_API_KEY
-  if (!apiKey) throw new Error("OPENAI_API_KEY が設定されていません。")
+async function generateGeminiSuggestions(prompt: string): Promise<Suggestion[]> {
+  const apiKey = process.env.GEMINI_API_KEY
+  if (!apiKey) throw new Error("GEMINI_API_KEY が設定されていません。")
 
-  const response = await fetch("https://api.openai.com/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${apiKey}`,
-    },
-    body: JSON.stringify({
-      model: OPENAI_SUGGESTION_MODEL,
-      messages: [
-        {
-          role: "system",
-          content:
-            "You are an investment research assistant. Suggest comparable companies and respond with JSON only.",
-        },
-        { role: "user", content: prompt },
-      ],
-    }),
-  })
+  const client = new GoogleGenerativeAI(apiKey)
+  const model = client.getGenerativeModel({ model: GEMINI_SUGGESTION_MODEL })
+  const result = await model.generateContent(prompt)
 
-  if (!response.ok) {
-    const errorBody = await response.json().catch(() => null)
-    const message =
-      errorBody?.error?.message ??
-      `OpenAI API error: ${response.status} ${response.statusText || ""}`.trim()
-    throw new Error(message)
+  const text =
+    result.response?.text?.() ??
+    result.response?.candidates?.[0]?.content?.parts?.[0]?.text ??
+    ""
+  if (!text || typeof text !== "string") {
+    throw new Error("Gemini からテキスト応答を取得できませんでした。")
   }
-
-  const data = await response.json()
-  const rawContent = data?.choices?.[0]?.message?.content
-  const text = typeof rawContent === "string" ? rawContent.trim() : ""
-  if (!text) return []
   return parseSuggestionsFromText(text)
 }
 

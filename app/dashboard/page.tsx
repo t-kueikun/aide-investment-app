@@ -61,7 +61,14 @@ interface SuggestedCompany {
 type MarketKey = DashboardSettings["preferredMarket"]
 
 const defaultSuggestedCompanies: Record<MarketKey, SuggestedCompany[]> = {
-  jp: [],
+  jp: [
+    { ticker: "7203.T", name: "トヨタ自動車" },
+    { ticker: "6758.T", name: "ソニーグループ" },
+    { ticker: "8035.T", name: "東京エレクトロン" },
+    { ticker: "8306.T", name: "三菱UFJFG" },
+    { ticker: "9201.T", name: "日本航空" },
+    { ticker: "5020.T", name: "ENEOSホールディングス" },
+  ],
   us: [],
 }
 
@@ -193,12 +200,12 @@ export default function DashboardPage() {
     defaultSuggestedCompanies[defaultDashboardSettings.preferredMarket],
   )
   const [suggestedLoading, setSuggestedLoading] = useState(false)
-const [suggestedError, setSuggestedError] = useState<string | null>(null)
-const hasQueryParam = Boolean(searchParams.get("tickers"))
-const showSettingsSummary = !hasQueryParam && settings.defaultTickers.trim().length > 0
+  const [suggestedError, setSuggestedError] = useState<string | null>(null)
+  const hasQueryParam = Boolean(searchParams.get("tickers"))
+  const showSettingsSummary = !hasQueryParam && settings.defaultTickers.trim().length > 0
 
-const tickersRef = useRef(tickers)
-const suggestionContextKeyRef = useRef<string | null>(null)
+  const tickersRef = useRef(tickers)
+  const suggestionContextKeyRef = useRef<string | null>(null)
   useEffect(() => {
     tickersRef.current = tickers
   }, [tickers])
@@ -461,6 +468,7 @@ const suggestionContextKeyRef = useRef<string | null>(null)
 
   const validCompanies = companies.filter((c): c is CompanyInsight => c !== null)
   const hasCandidateContext = tickers.some((value) => value.trim().length > 0) || validCompanies.length > 0
+  const showSuggestions = false
 
   useEffect(() => {
     let cancelled = false
@@ -554,9 +562,15 @@ const suggestionContextKeyRef = useRef<string | null>(null)
         const data = await response.json().catch(() => ({}))
 
         if (!response.ok) {
-          throw new Error(
-            typeof data?.error === "string" && data.error.length > 0 ? data.error : "候補の取得に失敗しました。",
-          )
+          if (!cancelled) {
+            const fallbackMessage =
+              typeof data?.error === "string" && data.error.length > 0 ? data.error : "候補の取得に失敗しました。"
+            const shouldUseFallbackList = !hasContext && fallbackList.length > 0
+            setSuggestedCompanies(shouldUseFallbackList ? fallbackList : [])
+            setSuggestedError(fallbackMessage)
+            suggestionContextKeyRef.current = payloadSignature
+          }
+          return
         }
         const remoteList = sanitizeSuggestionList(data?.suggestions)
         const filtered = remoteList.filter(
@@ -571,10 +585,12 @@ const suggestionContextKeyRef = useRef<string | null>(null)
         const mustFallback = isFallbackResponse || limited.length === 0
 
         if (!cancelled) {
-          setSuggestedCompanies(mustFallback ? fallbackList : limited)
+          const shouldUseFallbackList = !hasContext && fallbackList.length > 0
+          const nextSuggestions = mustFallback ? (shouldUseFallbackList ? fallbackList : []) : limited
+          setSuggestedCompanies(nextSuggestions)
           const nextError = (() => {
             if (typeof data?.error === "string" && data.error.length > 0) return data.error
-            if (isFallbackResponse) return fallbackList.length === 0 ? "AI候補の取得に失敗しました。" : null
+            if (isFallbackResponse) return "AI候補の取得に失敗しました。"
             if (limited.length === 0) return fallbackList.length === 0 ? "AI候補が見つかりませんでした。" : null
             return null
           })()
@@ -602,14 +618,29 @@ const suggestionContextKeyRef = useRef<string | null>(null)
     }
   }, [companies, settings.preferredMarket, tickers])
 
+  const setTickerIntoSlot = useCallback((ticker: string) => {
+    let resolvedIndex = 0
+    setTickers((prev) => {
+      const emptyIndex = prev.findIndex((value) => !value.trim())
+      resolvedIndex = emptyIndex === -1 ? 0 : emptyIndex
+      return prev.map((value, idx) => (idx === resolvedIndex ? ticker : value))
+    })
+    return resolvedIndex
+  }, [])
+
   const handleSuggestedSelect = useCallback(
     (ticker: string) => {
-      const targetIndex = tickers.findIndex((value) => !value.trim())
-      const indexToUse = targetIndex === -1 ? 0 : targetIndex
-      setTickers((prev) => prev.map((value, idx) => (idx === indexToUse ? ticker : value)))
+      setTickerIntoSlot(ticker)
+    },
+    [setTickerIntoSlot],
+  )
+
+  const handleHistorySelect = useCallback(
+    (ticker: string) => {
+      const indexToUse = setTickerIntoSlot(ticker)
       analyzeCompany(indexToUse, ticker)
     },
-    [analyzeCompany, tickers],
+    [analyzeCompany, setTickerIntoSlot],
   )
 
   const primaryPanelClass =
@@ -709,23 +740,25 @@ const suggestionContextKeyRef = useRef<string | null>(null)
                 <Button
                   key={`${entry.ticker}-${entry.company ?? "unknown"}`}
                   variant="outline"
-                    size="sm"
-                    className="rounded-full border-input px-3 py-1 text-foreground/80"
-                    onClick={() => handleSuggestedSelect(entry.ticker)}
-                  >
-                    <span className="font-medium">{entry.ticker}</span>
-                    {entry.company && <span className="ml-2 text-muted-foreground">{entry.company}</span>}
-                  </Button>
+                  size="sm"
+                  className="rounded-full border-input px-3 py-1 text-foreground/80"
+                  onClick={() => handleHistorySelect(entry.ticker)}
+                >
+                  <span className="font-medium">{entry.ticker}</span>
+                  {entry.company && <span className="ml-2 text-muted-foreground">{entry.company}</span>}
+                </Button>
                 ))}
               </div>
           </div>
         )}
-        {hasCandidateContext && (
+        {showSuggestions && hasCandidateContext && (
           <div className={cn("mt-6 p-6 text-left", secondaryPanelClass)}>
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
                 <p className="text-sm font-semibold">候補</p>
-                <p className="mt-1 text-xs text-muted-foreground">クリックすると空枠にティッカーが差し込まれます。</p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  クリックすると空枠にティッカーが差し込まれます。自動分析は行われません。
+                </p>
               </div>
               <span className="inline-flex items-center rounded-full border border-input/60 px-3 py-1 text-xs font-semibold text-muted-foreground">
                 {settings.preferredMarket === "us" ? "米国市場を優先表示中" : "国内市場を優先表示中"}
