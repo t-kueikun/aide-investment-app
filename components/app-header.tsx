@@ -3,6 +3,7 @@
 import Link from "next/link"
 import { useAuth } from "@/app/providers"
 import { Button } from "@/components/ui/button"
+import { ThemeToggle } from "@/components/theme-toggle"
 
 export function AppHeader() {
   const { user } = useAuth()
@@ -35,6 +36,7 @@ export function AppHeader() {
               </Button>
             </>
           )}
+          <ThemeToggle />
         </div>
       </div>
     </header>
