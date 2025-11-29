@@ -355,7 +355,7 @@ export default function LandingPage() {
               <p className="text-sm font-semibold uppercase tracking-wide text-blue-600">こんな課題はありませんか？</p>
               <h2 className="mt-4 text-3xl font-semibold text-foreground">投資情報の整理に追われる時間を削減</h2>
               <p className="mt-4 text-lg leading-8 text-muted-foreground">
-                AIDE は投資判断の現場で繰り返される手作業を代替します。よくあるボトルネックを解消することで、議論に集中できる環境を整えます。
+                NOLENN は投資判断の現場で繰り返される手作業を代替します。よくあるボトルネックを解消することで、議論に集中できる環境を整えます。
               </p>
             </div>
             <div className="md:col-span-2 grid gap-6">
@@ -371,7 +371,7 @@ export default function LandingPage() {
 
         <section className="max-w-6xl mx-auto px-6 pb-20">
           <div className="mb-12">
-            <h2 className="text-3xl font-semibold text-foreground">AIDE が選ばれる理由</h2>
+            <h2 className="text-3xl font-semibold text-foreground">NOLENN が選ばれる理由</h2>
             <p className="mt-4 max-w-3xl text-lg leading-8 text-muted-foreground">
               情報収集から比較、チームでの共有まで。投資判断に必要なステップを一つのワークスペースで完結させます。
             </p>

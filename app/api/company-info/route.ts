@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 
 const YAHOO_HEADERS = {
   // Yahoo Finance は User-Agent がないと 403 を返すことがあるため簡易的に指定
-  "User-Agent": "Mozilla/5.0 (compatible; AIDE/1.0; +https://aide-investment-app.local)",
+  "User-Agent": "Mozilla/5.0 (compatible; NOLENN/1.0; +https://nolenn-investment-app.local)",
   Accept: "application/json",
 } as const
 

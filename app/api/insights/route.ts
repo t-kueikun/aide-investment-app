@@ -63,7 +63,7 @@ const CACHE_TTL_MS = 1000 * 60 * 60 * 6
 const insightsCache = new Map<string, InsightCacheEntry>()
 
 const _WIKIPEDIA_API_ENDPOINT = "https://ja.wikipedia.org/w/api.php"
-export const WIKIPEDIA_USER_AGENT = "AIDE-Investment-App/1.0 (+https://aide.example.com)"
+export const WIKIPEDIA_USER_AGENT = "NOLENN-Investment-App/1.0 (+https://nolenn.example.com)"
 
 interface OfficerInfo {
   name: string | null
@@ -440,7 +440,7 @@ interface ExternalCompanyProfile {
 }
 
 const YAHOO_HEADERS = {
-  "User-Agent": "Mozilla/5.0 (compatible; AIDE/1.0; +https://aide-investment-app.local)",
+  "User-Agent": "Mozilla/5.0 (compatible; NOLENN/1.0; +https://nolenn-investment-app.local)",
   Accept: "application/json",
 } as const
 

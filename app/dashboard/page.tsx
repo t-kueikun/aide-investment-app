@@ -45,7 +45,7 @@ const defaultDashboardSettings: DashboardSettings = {
   preferredMarket: "jp",
 }
 
-const HISTORY_STORAGE_KEY = "aide-dashboard-ticker-history"
+const HISTORY_STORAGE_KEY = "nolenn-dashboard-ticker-history"
 
 interface HistoryEntry {
   ticker: string
@@ -680,7 +680,7 @@ export default function DashboardPage() {
   return (
     <div className="min-h-screen bg-background text-foreground transition-colors dark:bg-[radial-gradient(circle_at_top,rgba(15,23,42,0.95),rgba(2,6,23,1))]">
       <section className="mx-auto max-w-6xl px-6 pb-16 pt-20 text-center">
-        <p className="text-xs uppercase tracking-[0.5em] text-slate-500 dark:text-slate-300">AIDE DASHBOARD</p>
+        <p className="text-xs uppercase tracking-[0.5em] text-slate-500 dark:text-slate-300">NOLENN DASHBOARD</p>
         <h2 className="mt-4 text-4xl font-semibold leading-tight text-slate-900 sm:text-5xl dark:text-white">
           企業インサイトを、並べて比較する。
         </h2>

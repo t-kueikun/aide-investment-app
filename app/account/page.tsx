@@ -187,7 +187,7 @@ export default function AccountPage() {
         <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
           <div>
             <h1 className="text-2xl font-semibold">アカウント</h1>
-            <p className="mt-2 text-sm text-muted-foreground">AIDE アカウントの基本情報と設定を管理できます。</p>
+            <p className="mt-2 text-sm text-muted-foreground">NOLENN アカウントの基本情報と設定を管理できます。</p>
           </div>
           <div className="flex items-center gap-3">
             {plan === "pro" ? (

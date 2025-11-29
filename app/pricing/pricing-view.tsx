@@ -281,7 +281,7 @@ export function PricingView() {
               variant="outline"
               className="rounded-full border border-white/40 bg-transparent px-8 font-semibold text-foreground dark:border-white/20 dark:text-white"
             >
-              <a href="mailto:support@aide-investment.app">営業と相談する</a>
+              <a href="mailto:support@nolenn-investment.app">営業と相談する</a>
             </Button>
           </div>
         </section>

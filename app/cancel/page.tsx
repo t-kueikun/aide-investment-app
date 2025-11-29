@@ -207,7 +207,7 @@ export default function CancelPage() {
             </div>
             <div className="rounded-2xl border border-border bg-muted/40 p-4">
               <p className="font-semibold">サポート</p>
-              <p className="mt-1 text-muted-foreground">不明点があれば support@aide-investment.app までお問い合わせください。</p>
+              <p className="mt-1 text-muted-foreground">不明点があれば support@nolenn-investment.app までお問い合わせください。</p>
             </div>
           </CardContent>
           <CardFooter className="flex gap-3">

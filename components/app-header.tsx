@@ -1,6 +1,7 @@
 "use client"
 
 import Link from "next/link"
+import Image from "next/image"
 import { useAuth } from "@/app/providers"
 import { Button } from "@/components/ui/button"
 import { ThemeToggle } from "@/components/theme-toggle"
@@ -10,10 +11,16 @@ export function AppHeader() {
 
   return (
     <header className="sticky top-0 z-40 border-b border-border/40 bg-background/80 backdrop-blur-xl">
-      <div className="mx-auto flex h-16 w-full max-w-5xl items-center justify-between px-4 sm:px-6">
+      <div className="mx-auto flex h-20 w-full max-w-7xl items-center justify-between pl-16 pr-4 sm:pl-22 sm:pr-6">
         <Link href="/" className="flex items-center gap-2 text-foreground">
-          <span className="text-base font-semibold tracking-tight">AIDE</span>
-          <span className="text-xs text-muted-foreground">Insights</span>
+          <Image
+            src="/Nollen-logo-1.webp"
+            alt="NOLENN"
+            width={512}
+            height={160}
+            className="h-12 w-auto sm:h-14 dark:invert"
+            priority
+          />
         </Link>
 
         <div className="flex items-center gap-2">
