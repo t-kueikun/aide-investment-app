@@ -96,12 +96,17 @@ export default function AccountPage() {
           setSettings(defaultSettings)
         }
         setDirty(false)
-      } catch (error) {
+      } catch (error: any) {
         console.error("Failed to load user settings:", error)
+        const code = typeof error === "object" && error && "code" in error ? (error as { code?: string }).code : null
+        const description =
+          code === "permission-denied"
+            ? "権限がありません。ログインし直すか、管理者に Firestore のアクセス権を確認してください。"
+            : "ネットワーク状況を確認して、再度お試しください。"
         toast({
           variant: "destructive",
           title: "設定の読み込みに失敗しました",
-          description: "ネットワーク状況を確認して、再度お試しください。",
+          description,
         })
       } finally {
         setInitializing(false)
@@ -140,12 +145,17 @@ export default function AccountPage() {
           title: "設定を保存しました",
           description: "ダッシュボードの推奨コンテンツに反映されます。",
         })
-      } catch (error) {
+      } catch (error: any) {
         console.error("Failed to save user settings:", error)
+        const code = typeof error === "object" && error && "code" in error ? (error as { code?: string }).code : null
+        const description =
+          code === "permission-denied"
+            ? "権限がありません。ログイン状態を確認するか、管理者に Firestore ルールを確認してください。"
+            : "しばらく待ってから再度お試しください。"
         toast({
           variant: "destructive",
           title: "設定の保存に失敗しました",
-          description: "しばらく待ってから再度お試しください。",
+          description,
         })
       } finally {
         setSaving(false)
