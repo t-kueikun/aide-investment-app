@@ -21,7 +21,8 @@ export default function SignInPage() {
   const getContinueUrl = useCallback(() => {
     const envUrl = process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, "") || ""
     const origin = typeof window !== "undefined" ? window.location.origin : ""
-    const baseUrl = envUrl || origin
+    // ローカル開発時は origin (localhost) を優先し、本番は環境変数をフォールバックに使う
+    const baseUrl = origin || envUrl
     return baseUrl ? `${baseUrl}/sign-in` : null
   }, [])
 
